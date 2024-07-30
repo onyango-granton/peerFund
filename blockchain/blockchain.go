@@ -7,6 +7,7 @@ import (
     "time"
 )
 
+// Borrower struct holds details about the borrower
 type Borrower struct {
     Name           string
     IDNumber       string
@@ -17,6 +18,7 @@ type Borrower struct {
     Location       string
 }
 
+// Lender struct holds details about the lender
 type Lender struct {
     Name         string
     IDNumber     string
@@ -24,6 +26,7 @@ type Lender struct {
     PhoneNumber  string
 }
 
+// Transaction struct holds details about the transaction
 type Transaction struct {
     BorrowerID      string
     LenderID        string
@@ -31,6 +34,7 @@ type Transaction struct {
     Amount          float64
 }
 
+// Block struct represents a single block in the blockchain
 type Block struct {
     Index        int
     Timestamp    time.Time
@@ -39,29 +43,21 @@ type Block struct {
     Hash         string
 }
 
+// Blockchain struct represents the entire blockchain
 type Blockchain struct {
     Blocks []Block
 }
 
 var Bc Blockchain
 
-// InitBlockchain initializes the blockchain with the genesis block
-func InitBlockchain() {
-    genesisBlock := Block{}
-    genesisBlock = Block{0, time.Now(), Transaction{}, "", calculateHash(genesisBlock)}
-    Bc = Blockchain{[]Block{genesisBlock}}
-}
-
-// calculateHash computes the SHA-256 hash of a block
 func calculateHash(block Block) string {
-    record := string(block.Index) + block.Timestamp.String() + fmt.Sprintf("%v", block.Transaction) + block.PrevHash
+    record := fmt.Sprintf("%d%s%v%s", block.Index, block.Timestamp.String(), block.Transaction, block.PrevHash)
     hash := sha256.New()
     hash.Write([]byte(record))
     hashed := hash.Sum(nil)
     return hex.EncodeToString(hashed)
 }
 
-// GenerateBlock creates a new block using the previous block and transaction data
 func GenerateBlock(oldBlock Block, transaction Transaction) Block {
     newBlock := Block{
         Index:       oldBlock.Index + 1,
@@ -74,7 +70,6 @@ func GenerateBlock(oldBlock Block, transaction Transaction) Block {
     return newBlock
 }
 
-// IsBlockValid validates a new block by checking the index and hashes
 func IsBlockValid(newBlock, oldBlock Block) bool {
     if oldBlock.Index+1 != newBlock.Index {
         return false
@@ -86,4 +81,15 @@ func IsBlockValid(newBlock, oldBlock Block) bool {
         return false
     }
     return true
+}
+
+func InitBlockchain() {
+    genesisBlock := Block{
+        Index:       0,
+        Timestamp:   time.Now(),
+        Transaction: Transaction{},
+        PrevHash:    "",
+        Hash:        calculateHash(Block{}),
+    }
+    Bc = Blockchain{[]Block{genesisBlock}}
 }

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Form</title>
+</head>
+<body>
+    <h1>Transaction Form</h1>
+    <form action="/submit" method="post">
+        <h2>Borrower Details</h2>
+        <label for="borrower_name">Name:</label>
+        <input type="text" id="borrower_name" name="borrower_name"><br>
+        <label for="borrower_id_number">ID Number:</label>
+        <input type="text" id="borrower_id_number" name="borrower_id_number"><br>
+        <label for="borrower_business_permit">Business Permit:</label>
+        <input type="text" id="borrower_business_permit" name="borrower_business_permit"><br>
+        <label for="borrower_business_name">Business Name:</label>
+        <input type="text" id="borrower_business_name" name="borrower_business_name"><br>
+        <label for="borrower_email_address">Email:</label>
+        <input type="email" id="borrower_email_address" name="borrower_email_address"><br>
+        <label for="borrower_phone_number">Phone:</label>
+        <input type="tel" id="borrower_phone_number" name="borrower_phone_number"><br>
+        <label for="borrower_location">Location:</label>
+        <input type="text" id="borrower_location" name="borrower_location"><br>
+        
+        <h2>Lender Details</h2>
+        <label for="lender_name">Name:</label>
+        <input type="text" id="lender_name" name="lender_name"><br>
+        <label for="lender_id_number">ID Number:</label>
+        <input type="text" id="lender_id_number" name="lender_id_number"><br>
+        <label for="lender_email_address">Email:</label>
+        <input type="email" id="lender_email_address" name="lender_email_address"><br>
+        <label for="lender_phone_number">Phone:</label>
+        <input type="tel" id="lender_phone_number" name="lender_phone_number"><br>
+        
+        <h2>Transaction Details</h2>
+        <label for="transaction_amount">Amount:</label>
+        <input type="text" id="transaction_amount" name="transaction_amount"><br>
+        
+        <input type="submit" value="Submit">
+    </form>
+</body>
+</html>
