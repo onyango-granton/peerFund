@@ -1,0 +1,63 @@
+
+/* Dashboard Styles */
+.dashboard-container {
+    padding: 40px 20px;
+    max-width: 1200px;
+    margin: auto;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #00aaff;
+}
+
+.dashboard-content {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+}
+
+.card {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    width: 300px;
+    padding: 20px;
+    margin: 10px;
+    text-align: center;
+}
+
+.card h2 {
+    color: #00aaff;
+    margin-bottom: 20px;
+}
+
+.card p {
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.offset-btn {
+    background-color: #00aaff;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 5px;
+    width: 100%;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.offset-btn:hover {
+    background-color: #008ecc;
+}
+
+input[type="number"] {
+    width: calc(100% - 20px);
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+}
