@@ -6,6 +6,8 @@ import (
 	"strconv"
 )
 
+// borrower user structure info filled during registration
+// info to be used for further validation
 type borrower struct {
 	fName            string
 	lName            string
@@ -17,6 +19,7 @@ type borrower struct {
 	prev             *borrower
 }
 
+//lender user information filled during registration
 type lender struct {
 	fName       string
 	lName       string
@@ -27,6 +30,8 @@ type lender struct {
 	prev *lender
 }
 
+// generate user id as a unique hash... 
+// to be used as username fo anonimity
 func generateUID(userB *borrower,userL *lender) string {
 	var record string
 	if userB != nil{
@@ -40,6 +45,7 @@ func generateUID(userB *borrower,userL *lender) string {
 	return hex.EncodeToString(hashed)
 }
 
+// registration of new users adding them to the prev node
 func (newB *borrower) regBorrower(fName,lname,businessPermitNo,email string, idNo, phoneNumber int, prev *borrower) (*borrower, error) {
 	newB.fName = fName
 	newB.lName = lname
@@ -53,6 +59,7 @@ func (newB *borrower) regBorrower(fName,lname,businessPermitNo,email string, idN
 	return newB, nil
 }
 
+// registration of new users adding them to the prev node
 func (newL *lender) regLender(fName,lname,email string, idNo, phoneNumber int, prev *lender) (*lender, error) {
 	newL.fName = fName
 	newL.lName = lname
@@ -65,5 +72,3 @@ func (newL *lender) regLender(fName,lname,email string, idNo, phoneNumber int, p
 	return newL, nil
 }
 
-
-func ()
