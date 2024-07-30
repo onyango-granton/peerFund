@@ -4,23 +4,45 @@ import (
     "fmt"
     "log"
     "net/http"
-    "strconv"
     "time"
-
+	"strconv"
+    "github.com/dgraph-io/badger/v3"
     "github.com/gin-gonic/gin"
-    "go-blockchain/badgerDb"
-    "go-blockchain/blockchain"
 )
+
+type Borrower struct {
+    Name           string
+    IDNumber       string
+    BusinessPermit string
+    BusinessName   string
+    EmailAddress   string
+    PhoneNumber    string
+    Location       string
+}
+
+type Lender struct {
+    Name         string
+    IDNumber     string
+    EmailAddress string
+    PhoneNumber  string
+}
+
+type Transaction struct {
+    BorrowerID      string
+    LenderID        string
+    TransactionDate time.Time
+    Amount          float64
+}
+
+var db *badger.DB
 
 func main() {
     var err error
-    err = badgerDb.OpenDB("/tmp/badger")
+    db, err = badger.Open(badger.DefaultOptions("/tmp/badger"))
     if err != nil {
         log.Fatal(err)
     }
-    defer badgerDb.CloseDB()
-
-    blockchain.InitBlockchain()
+    defer db.Close()
 
     router := gin.Default()
     router.LoadHTMLGlob("templates/*")
@@ -30,7 +52,7 @@ func main() {
     })
 
     router.POST("/submit", func(c *gin.Context) {
-        borrower := blockchain.Borrower{
+        borrower := Borrower{
             Name:           c.PostForm("borrower_name"),
             IDNumber:       c.PostForm("borrower_id_number"),
             BusinessPermit: c.PostForm("borrower_business_permit"),
@@ -40,7 +62,7 @@ func main() {
             Location:       c.PostForm("borrower_location"),
         }
 
-        lender := blockchain.Lender{
+        lender := Lender{
             Name:         c.PostForm("lender_name"),
             IDNumber:     c.PostForm("lender_id_number"),
             EmailAddress: c.PostForm("lender_email_address"),
@@ -53,45 +75,40 @@ func main() {
             return
         }
 
-        transaction := blockchain.Transaction{
+        transaction := Transaction{
             BorrowerID:      borrower.IDNumber,
             LenderID:        lender.IDNumber,
             TransactionDate: time.Now(),
             Amount:          amount,
         }
 
-        newBlock := blockchain.GenerateBlock(blockchain.Bc.Blocks[len(blockchain.Bc.Blocks)-1], transaction)
-        if blockchain.IsBlockValid(newBlock, blockchain.Bc.Blocks[len(blockchain.Bc.Blocks)-1]) {
-            blockchain.Bc.Blocks = append(blockchain.Bc.Blocks, newBlock)
-
-            err := badgerDb.StoreData("borrower_"+borrower.IDNumber, fmt.Sprintf("%+v", borrower))
+        err = db.Update(func(txn *badger.Txn) error {
+            // Store borrower
+            err := txn.Set([]byte("borrower_"+borrower.IDNumber), []byte(fmt.Sprintf("%+v", borrower)))
             if err != nil {
-                c.String(http.StatusInternalServerError, err.Error())
-                return
+                return err
             }
 
-            err = badgerDb.StoreData("lender_"+lender.IDNumber, fmt.Sprintf("%+v", lender))
+            // Store lender
+            err = txn.Set([]byte("lender_"+lender.IDNumber), []byte(fmt.Sprintf("%+v", lender)))
             if err != nil {
-                c.String(http.StatusInternalServerError, err.Error())
-                return
+                return err
             }
 
-            err = badgerDb.StoreData("transaction_"+borrower.IDNumber+"_"+lender.IDNumber, fmt.Sprintf("%+v", transaction))
+            // Store transaction
+            err = txn.Set([]byte("transaction_"+borrower.IDNumber+"_"+lender.IDNumber), []byte(fmt.Sprintf("%+v", transaction)))
             if err != nil {
-                c.String(http.StatusInternalServerError, err.Error())
-                return
+                return err
             }
 
-            err = badgerDb.StoreData("blockchain", fmt.Sprintf("%+v", blockchain.Bc))
-            if err != nil {
-                c.String(http.StatusInternalServerError, err.Error())
-                return
-            }
-
-            c.String(http.StatusOK, "Data stored successfully")
-        } else {
-            c.String(http.StatusInternalServerError, "Failed to validate the new block")
+            return nil
+        })
+        if err != nil {
+            c.String(http.StatusInternalServerError, err.Error())
+            return
         }
+
+        c.String(http.StatusOK, "Data stored successfully")
     })
 
     router.Run(":8080")
