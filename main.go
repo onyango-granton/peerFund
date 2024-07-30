@@ -3,12 +3,16 @@ package main
 import (
     "database/sql"
     "fmt"
+    "html/template"
     "log"
     "net/http"
     _ "github.com/go-sql-driver/mysql"
 )
 
-var db *sql.DB
+var (
+    db       *sql.DB
+    templates *template.Template
+)
 
 func main() {
     // Open database connection
@@ -26,13 +30,44 @@ func main() {
         log.Fatal(err)
     }
 
+    // Parse templates
+    templates, err = template.ParseGlob("templates/*.html")
+    if err != nil {
+        log.Fatal(err)
+    }
+
     // Set up HTTP routes
+    http.HandleFunc("/", indexHandler)
+    http.HandleFunc("/login", loginHandler)
+    http.HandleFunc("/dashboard", dashboardHandler)
     http.HandleFunc("/submit", submitHandler)
     http.HandleFunc("/retrieve", retrieveHandler)
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
     // Start the server
     fmt.Println("Server started at http://localhost:8080")
     log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func indexHandler(w http.ResponseWriter, r *http.Request) {
+    err := templates.ExecuteTemplate(w, "index.html", nil)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+    err := templates.ExecuteTemplate(w, "login.html", nil)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
+}
+
+func dashboardHandler(w http.ResponseWriter, r *http.Request) {
+    err := templates.ExecuteTemplate(w, "dashboard.html", nil)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
 }
 
 func submitHandler(w http.ResponseWriter, r *http.Request) {
