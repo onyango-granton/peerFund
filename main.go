@@ -5,7 +5,8 @@ import (
     "log"
     "net/http"
     "time"
-	"strconv"
+    "strconv"
+    "os"
     "github.com/dgraph-io/badger/v3"
     "github.com/gin-gonic/gin"
 )
@@ -43,6 +44,13 @@ func main() {
         log.Fatal(err)
     }
     defer db.Close()
+
+    // Print the current working directory for debugging
+    wd, err := os.Getwd()
+    if err != nil {
+        log.Fatal(err)
+    }
+    log.Println("Current working directory:", wd)
 
     router := gin.Default()
     router.LoadHTMLGlob("templates/*")
