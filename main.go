@@ -1,120 +1,172 @@
 package main
 
 import (
-    "database/sql"
-    "fmt"
-    "html/template"
-    "log"
-    "net/http"
-    _ "github.com/go-sql-driver/mysql"
+	"fmt"
+	"log"
+	"net/http"
+	"text/template"
+	"time"
+
+	"github.com/dgrijalva/jwt-go"
 )
 
 var (
-    db       *sql.DB
-    templates *template.Template
+	jwtKey      = []byte("my_secret_key")
+	credentials = map[string]struct {
+		Password string
+		Name     string
+		Phone    string
+		Email    string
+		Address  string
+	}{
+		"kada@peer.com": {"xkUbdz6r", "Kennedy Ada", "0704513552", "adakennedy@outlook.com", "0xe51A9e0a736F870EA096E11E8c292CfE2Ef5F078"},
+		"ann":           {"bSkinGurl", "Ann Maina", "0724318117", "nyagoh@gmail.com", "Milimani"},
+		"josotieno":     {"fyaman42", "Joseph Otieno", "0722549387", "jokumu25@gmail.com", "Kayole"},
+	}
+	// templates = template.Must(template.ParseGlob("templates/*.html"))
 )
 
-func main() {
-    // Open database connection
-    var err error
-    dsn := "myuser:mypassword@tcp(127.0.0.1:3306)/mydatabase"
-    db, err = sql.Open("mysql", dsn)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer db.Close()
-
-    // Ping the database to verify connection
-    err = db.Ping()
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Parse templates
-    templates, err = template.ParseGlob("templates/*.html")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Set up HTTP routes
-    http.HandleFunc("/", indexHandler)
-    http.HandleFunc("/login", loginHandler)
-    http.HandleFunc("/dashboard", dashboardHandler)
-    http.HandleFunc("/submit", submitHandler)
-    http.HandleFunc("/retrieve", retrieveHandler)
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-
-    // Start the server
-    fmt.Println("Server started at http://localhost:8080")
-    log.Fatal(http.ListenAndServe(":8080", nil))
-}
-
-func indexHandler(w http.ResponseWriter, r *http.Request) {
-    err := templates.ExecuteTemplate(w, "index.html", nil)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
+type Claims struct {
+	Username string `json:"username"`
+	Name     string `json:"name"`
+	Phone    string `json:"phone"`
+	Email    string `json:"email"`
+	Address  string `json:"address"`
+	jwt.StandardClaims
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-    err := templates.ExecuteTemplate(w, "login.html", nil)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
+	var username, password string
+	if r.URL.Path != "/login" {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+	if r.Method == http.MethodGet {
+		t, err := template.ParseFiles("templates/login.html")
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		t.Execute(w, nil)
+	} else if r.Method == http.MethodPost {
+		username = r.FormValue("email")
+		password = r.FormValue("password")
+
+		user, ok := credentials[username]
+		if !ok || user.Password != password {
+			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+			return
+		}
+
+		expirationTime := time.Now().Add(5 * time.Minute)
+		claims := &Claims{
+			Username: username,
+			Name:     user.Name,
+			Phone:    user.Phone,
+			Email:    user.Email,
+			Address:  user.Address,
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: expirationTime.Unix(),
+			},
+		}
+
+		// Create and sign the token
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		tokenString, err := token.SignedString(jwtKey)
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		// Set the token as a cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:    "token",
+			Value:   tokenString,
+			Expires: expirationTime,
+		})
+
+		// Redirect to the dashboard
+		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+	}
+}
+
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+	if r.Method == http.MethodGet {
+		t, err := template.ParseFiles("templates/index.html")
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		t.Execute(w, nil)
+	} else {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+	}
 }
 
 func dashboardHandler(w http.ResponseWriter, r *http.Request) {
-    err := templates.ExecuteTemplate(w, "dashboard.html", nil)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
+	cookie, err := r.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	tokenStr := cookie.Value
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	if !token.Valid {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	data := struct {
+		Username string
+		Name     string
+		Phone    string
+		Email    string
+		Address  string
+	}{
+		Username: claims.Username,
+		Name:     claims.Name,
+		Phone:    claims.Phone,
+		Email:    claims.Email,
+		Address:  claims.Address,
+	}
+
+	t, err := template.ParseFiles("templates/dashboard.html")
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	t.Execute(w, data)
 }
 
-func submitHandler(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPost {
-        http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-        return
-    }
+func main() {
+	http.HandleFunc("/", homeHandler)
+	http.HandleFunc("/login", loginHandler)
+	http.HandleFunc("/dashboard", dashboardHandler)
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
-    // Read the form data
-    r.ParseForm()
-    data := r.FormValue("data")
-
-    // Insert data into the database
-    _, err := db.Exec("INSERT INTO submissions (data) VALUES (?)", data)
-    if err != nil {
-        http.Error(w, "Failed to store data", http.StatusInternalServerError)
-        return
-    }
-
-    w.WriteHeader(http.StatusOK)
-    w.Write([]byte("Data stored successfully"))
-}
-
-func retrieveHandler(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodGet {
-        http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-        return
-    }
-
-    // Retrieve data from the database
-    rows, err := db.Query("SELECT data FROM submissions")
-    if err != nil {
-        http.Error(w, "Failed to retrieve data", http.StatusInternalServerError)
-        return
-    }
-    defer rows.Close()
-
-    var result string
-    for rows.Next() {
-        var data string
-        if err := rows.Scan(&data); err != nil {
-            http.Error(w, "Failed to scan data", http.StatusInternalServerError)
-            return
-        }
-        result += data + "\n"
-    }
-
-    w.Header().Set("Content-Type", "text/plain")
-    w.Write([]byte(result))
+	fmt.Println("Server started at http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }

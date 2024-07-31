@@ -54,7 +54,7 @@ h1 {
     background-color: #008ecc;
 }
 
-input[type="number"] {
+input {
     width: calc(100% - 20px);
     padding: 10px;
     border-radius: 5px;
