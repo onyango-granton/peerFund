@@ -1,13 +1,21 @@
 package main
 
 import (
+	"context"
+	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"text/template"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 var (
@@ -19,7 +27,7 @@ var (
 		Email    string
 		Address  string
 	}{
-		"kada@peer.com": {"xkUbdz6r", "Kennedy Ada", "0704513552", "adakennedy@outlook.com", "0xe51A9e0a736F870EA096E11E8c292CfE2Ef5F078"},
+		"kada@peer.com": {"xkUbdz6r", "Kennedy Ada", "0704513552", "adakennedy@outlook.com", "0x6448609A35085e33CbC4eD0A84A1d2f43Be0cA68"},
 		"ann":           {"bSkinGurl", "Ann Maina", "0724318117", "nyagoh@gmail.com", "Milimani"},
 		"josotieno":     {"fyaman42", "Joseph Otieno", "0722549387", "jokumu25@gmail.com", "Kayole"},
 	}
@@ -33,6 +41,17 @@ type Claims struct {
 	Email    string `json:"email"`
 	Address  string `json:"address"`
 	jwt.StandardClaims
+}
+
+type Request struct {
+	Recipient  string `json:"recipient"`
+	Amount     string `json:"amount"`
+	PrivateKey string `json:"privateKey"`
+}
+
+type Response struct {
+	Message string `json:"message"`
+	Balance string `json:"balance"`
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -139,18 +158,29 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Connect to Ganache and get balance
+	client, err := ethclient.Dial("HTTP://127.0.0.1:7545")
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	formAddress := common.HexToAddress(claims.Address)
+	balance := getBalanceInEth(client, formAddress)
+
 	data := struct {
 		Username string
 		Name     string
 		Phone    string
 		Email    string
 		Address  string
+		Balance  string
 	}{
 		Username: claims.Username,
 		Name:     claims.Name,
 		Phone:    claims.Phone,
 		Email:    claims.Email,
 		Address:  claims.Address,
+		Balance:  balance,
 	}
 
 	t, err := template.ParseFiles("templates/dashboard.html")
@@ -159,6 +189,104 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t.Execute(w, data)
+}
+
+func sendEthHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// Parse form values
+		err := r.ParseForm()
+		if err != nil {
+			http.Error(w, "Unable to parse form", http.StatusBadRequest)
+			return
+		}
+
+		// Retrieve values from form
+		amount := r.FormValue("amount")
+		recipient := r.FormValue("address")
+		privateKeyHex := r.FormValue("key")
+
+		// Create a new Ethereum client
+		client, err := ethclient.Dial("HTTP://127.0.0.1:7545")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Convert private key from hex to ECDSA
+		privateKey, err := crypto.HexToECDSA(privateKeyHex)
+		if err != nil {
+			http.Error(w, "Invalid private key", http.StatusBadRequest)
+			return
+		}
+
+		publicKey := privateKey.Public()
+		publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+		if !ok {
+			http.Error(w, "Cannot assert type: publicKey is not of type *ecdsa.PublicKey", http.StatusBadRequest)
+			return
+		}
+		fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+		// Fetch nonce, gas, and create the transaction
+		nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		value := new(big.Int)
+		value.SetString(amount, 10)
+		value = value.Mul(value, big.NewInt(1e18)) // Convert to Wei
+
+		gasLimit := uint64(21000)
+		gasPrice, err := client.SuggestGasPrice(context.Background())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		toAddress := common.HexToAddress(recipient)
+		var data []byte
+		tx := types.NewTransaction(nonce, toAddress, value, gasLimit, gasPrice, data)
+
+		chainID := big.NewInt(1337)
+		signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		err = client.SendTransaction(context.Background(), signedTx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Fetch balances
+		balanceSender := getBalanceInEth(client, fromAddress)
+		balanceRecipient := getBalanceInEth(client, toAddress)
+
+		// Create response message
+		response := map[string]string{
+			"message":          "Transaction was successful!",
+			"balanceSender":    balanceSender,
+			"balanceRecipient": balanceRecipient,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	} else {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func getBalanceInEth(client *ethclient.Client, address common.Address) string {
+	balance, err := client.BalanceAt(context.Background(), address, nil)
+	if err != nil {
+		return fmt.Sprintf("Error getting balance: %v", err)
+	}
+	ethValue := new(big.Float).Quo(new(big.Float).SetInt(balance), big.NewFloat(1e18))
+	return fmt.Sprintf("Balance: %s ETH", ethValue.Text('f', 18))
 }
 
 func main() {
