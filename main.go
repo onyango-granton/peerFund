@@ -29,7 +29,7 @@ var (
 	}{
 		"kada@peerfund.com": {"xkUbdz6r", "Kennedy Ada", "0704513552", "adakennedy@outlook.com", "0xcef41520D00132677de7cFC89956B212169109C4"},
 		"ann@peerfund.com":           {"bSkinGurl", "Ann Maina", "0724318117", "nyagoh@gmail.com", "0x803b88327972D9ad11170152E0A826Fe3B0BF469"},
-		"josotieno@peerfund.com":     {"fyaman42", "Joseph Otieno", "0722549387", "jokumu25@gmail.com", "0x3e743E3d2728513f065d56Eead3A4Fd657966D64"},
+		"josotieno@peerfund.com":     {"fyaman42", "Joseph Otieno", "0722549387", "jokumu25@gmail.com", "Kayole"},
 	}
 	// templates = template.Must(template.ParseGlob("templates/*.html"))
 )
